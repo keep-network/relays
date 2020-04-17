@@ -14,4 +14,4 @@ COPY setup.py setup.py
 
 RUN python setup.py install
 
-ENTRYPOINT ["python", "maintainer/header_forwarder/h.py", ".env"]
+ENTRYPOINT ["python", "maintainer/header_forwarder/h.py", "/mnt/relay-maintainer/.env"]
