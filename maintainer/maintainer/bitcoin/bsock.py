@@ -29,7 +29,8 @@ async def close_connection() -> None:
 
 @sio.event
 async def connect() -> None:
-    await sio.call('auth', config.get()['API_KEY'])
+    if len(config.get()['API_KEY']) > 0:
+        await sio.call('auth', config.get()['API_KEY'])
     logger.info(f'connected and authed')
 
 
