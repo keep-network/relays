@@ -86,7 +86,7 @@ async def _add_headers(headers: List[RelayHeader]) -> None:
         method='addHeaders',
         args=[anchor["raw"], headers_hex],
         nonce=nonce)
-    asyncio.create_task(shared.sign_and_broadcast(tx))
+    await shared.sign_and_broadcast(tx)
 
 
 async def _add_diff_change(headers: List[RelayHeader]) -> None:
@@ -119,7 +119,7 @@ async def _add_diff_change(headers: List[RelayHeader]) -> None:
             headers_hex],
         nonce=nonce)
 
-    asyncio.create_task(shared.sign_and_broadcast(tx))
+    await shared.sign_and_broadcast(tx)
 
 
 async def find_lca(
@@ -190,4 +190,4 @@ async def _update_best_digest(
                 f'previous best was {utils.format_header(current_best)}\n'
                 f'new best is {utils.format_header(new_best)}\n')
 
-    asyncio.create_task(shared.sign_and_broadcast(tx))
+    await shared.sign_and_broadcast(tx)

@@ -94,7 +94,7 @@ async def sign_and_broadcast(
 
     logger.info(f'dispatched transaction {tx_id}')
     if not ignore_result:
-        asyncio.ensure_future(_track_tx_result(tx_id))
+        await _track_tx_result(tx_id)
 
 
 def make_call_tx(
