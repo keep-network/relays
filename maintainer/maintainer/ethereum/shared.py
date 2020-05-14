@@ -14,7 +14,8 @@ logger = logging.getLogger('root.summa_relay.shared_eth')
 
 GWEI = 1000000000
 DEFAULT_GAS = 500_000
-DEFAULT_GAS_PRICE = 22 * GWEI
+DEFAULT_GAS_PRICE = 10 * GWEI
+MAX_GAS_PRICE = 80 * GWEI
 
 CONNECTION: ethrpc.BaseRPC
 NONCE: Iterator[int]  # yields ints, takes no sends
@@ -94,7 +95,7 @@ async def sign_and_broadcast(
 
     logger.info(f'dispatched transaction {tx_id}')
     if not ignore_result:
-        await _track_tx_result(tx_id)
+        asyncio.ensure_future(_track_tx_result(tx, tx_id))
 
 
 def make_call_tx(
@@ -105,7 +106,7 @@ def make_call_tx(
         nonce: int,
         value: int = 0,
         gas: int = DEFAULT_GAS,
-        gas_price: int = DEFAULT_GAS_PRICE) -> UnsignedEthTx:
+        gas_price: int = -1) -> UnsignedEthTx:
     '''
     Sends tokens to a recipient
     Args:
@@ -121,6 +122,13 @@ def make_call_tx(
     '''
     logger.debug(f'making tx call {method} on {contract} '
                  f'with value {value} and {len(args)} args')
+
+    # Adjust gas price for current pending txes.
+    if gas_price == -1:
+        gas_price = min(
+            # Let's make real sure there are no zero or negative gas prices, eh?
+            max(INCOMPLETE_TX_COUNT, 1) * DEFAULT_GAS_PRICE,
+            MAX_GAS_PRICE)
 
     gas_price = _adjust_gas_price(gas_price)
     chainId = config.get()['CHAIN_ID']
@@ -159,16 +167,42 @@ def _adjust_gas_price(gas_price: int) -> int:
             'very high gas price detected: {} gwei'.format(gas_price / GWEI))
     return gas_price
 
+INCOMPLETE_TX_COUNT = 0
 
-async def _track_tx_result(tx_id: str) -> None:
+async def _track_tx_result(tx: UnsignedEthTx, tx_id: str) -> None:
+    global INCOMPLETE_TX_COUNT
+
     '''Keep track of the result of a transaction by polling every 25 seconds'''
+    INCOMPLETE_TX_COUNT += 1
+    lastTxCount = INCOMPLETE_TX_COUNT
+
     receipt_or_none: Optional[Receipt] = None
 
     for _ in range(20):
         await asyncio.sleep(30)
         receipt_or_none = await CONNECTION.get_tx_receipt(tx_id)
         if receipt_or_none is not None:
+            INCOMPLETE_TX_COUNT -= 1
             break
+        else:
+            if INCOMPLETE_TX_COUNT > lastTxCount:
+                # If the pending tx count grew, resubmit this transaction with a
+                # boosted gas cost. Currently that's just a linear multiplier on
+                # the initial gas.
+                lastTxCount = INCOMPLETE_TX_COUNT
+                newTx = UnsignedEthTx(
+                    nonce = tx.nonce,
+                    gasPrice = min(INCOMPLETE_TX_COUNT * tx.gasPrice, MAX_GAS_PRICE),
+                    gas = tx.gas,
+                    to = tx.to,
+                    value = tx.value,
+                    data = tx.data,
+                    chainId = tx.chainId)
+
+                # Bradcast and set up tracking for the new tx, and stop watching
+                # this one.
+                sign_and_broadcast(newTx, False)
+                return
 
     if receipt_or_none is None:
         raise RuntimeError(f'No receipt after 10 minutes: {tx_id}')
