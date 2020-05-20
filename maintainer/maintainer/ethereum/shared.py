@@ -56,17 +56,27 @@ async def init() -> None:
     else:
         global NONCE
         address = cast(str, c['ETH_ADDRESS'])
-        n = await CONNECTION.get_nonce(address)
-        NONCE = _nonce(n)
-        logger.info(f'nonce is {n}')
+        # Get the current nonce = total txes including pending.
+        all_tx_count = await CONNECTION.get_nonce(address)
 
-        # Start at the pending transaction count, which assumes the account used
-        # to operate the relay is doing nothing else.
-        global INCOMPLETE_TX_COUNT
+        # Get the already-mined count.
         mined_tx_count = int(await CONNECTION._RPC(
             method='eth_getTransactionCount',
             params=[address, 'latest']), 16)
-        INCOMPLETE_TX_COUNT = max(n - mined_tx_count, 0)
+
+        pending_tx_count = max(all_tx_count - mined_tx_count, 0)
+
+        # Treat all pending txes as incomplete.
+        global INCOMPLETE_TX_COUNT
+        INCOMPLETE_TX_COUNT = pending_tx_count
+
+        # Replace all pending txes by starting the nonce at the mined count.
+        # Note that we could crash if the next tx we send finds the first
+        # unconfirmed nonce having already been mined---this is fine, the
+        # process can be restarted and will read the latest pending and mined
+        # state at that time.
+        NONCE = _nonce(mined_tx_count)
+        logger.info(f'nonce is {mined_tx_count}')
 
 async def close_connection() -> None:
     try:
