@@ -19,7 +19,8 @@ MAX_GAS_PRICE = 80 * GWEI
 
 CONNECTION: ethrpc.BaseRPC
 NONCE: Iterator[int]  # yields ints, takes no sends
-INCOMPLETE_TX_COUNT = 0
+LATEST_PENDING_NONCE = 0
+LATEST_COMPLETE_NONCE = 0
 
 def _nonce(i: int) -> Iterator[int]:
     '''Infinite generator for nonces'''
@@ -55,28 +56,24 @@ async def init() -> None:
             'No ethereum privkey found in env config. Txns will error')
     else:
         global NONCE
+        global LATEST_PENDING_NONCE
+        global LATEST_COMPLETE_NONCE
         address = cast(str, c['ETH_ADDRESS'])
-        # Get the current nonce = total txes including pending.
-        all_tx_count = await CONNECTION.get_nonce(address)
-
         # Get the already-mined count.
         mined_tx_count = int(await CONNECTION._RPC(
             method='eth_getTransactionCount',
             params=[address, 'latest']), 16)
 
-        pending_tx_count = max(all_tx_count - mined_tx_count, 0)
-
-        # Treat all pending txes as incomplete.
-        global INCOMPLETE_TX_COUNT
-        INCOMPLETE_TX_COUNT = pending_tx_count
+        LATEST_PENDING_NONCE = await CONNECTION.get_nonce(address) - 1
+        LATEST_COMPLETE_NONCE = mined_tx_count
 
         # Replace all pending txes by starting the nonce at the mined count.
         # Note that we could crash if the next tx we send finds the first
         # unconfirmed nonce having already been mined---this is fine, the
         # process can be restarted and will read the latest pending and mined
         # state at that time.
-        NONCE = _nonce(mined_tx_count)
-        logger.info(f'nonce is {mined_tx_count}')
+        NONCE = _nonce(LATEST_COMPLETE_NONCE + 1)
+        logger.info(f'nonce is {LATEST_COMPLETE_NONCE + 1}')
 
 async def close_connection() -> None:
     try:
@@ -140,12 +137,17 @@ def make_call_tx(
     logger.debug(f'making tx call {method} on {contract} '
                  f'with value {value} and {len(args)} args')
 
+    global LATEST_PENDING_NONCE
+
     # Adjust gas price for current pending txes.
     if gas_price == -1:
         gas_price = min(
             # Let's make real sure there are no zero or negative gas prices, eh?
-            max(INCOMPLETE_TX_COUNT, 1) * DEFAULT_GAS_PRICE,
+            max(nonce - LATEST_PENDING_NONCE, 1) * DEFAULT_GAS_PRICE,
             MAX_GAS_PRICE)
+
+    if nonce > LATEST_PENDING_NONCE:
+        LATEST_PENDING_NONCE = nonce
 
     gas_price = _adjust_gas_price(gas_price)
     chainId = config.get()['CHAIN_ID']
@@ -185,29 +187,28 @@ def _adjust_gas_price(gas_price: int) -> int:
     return gas_price
 
 async def _track_tx_result(tx: UnsignedEthTx, tx_id: str) -> None:
-    global INCOMPLETE_TX_COUNT
-
     '''Keep track of the result of a transaction by polling every 25 seconds'''
-    INCOMPLETE_TX_COUNT += 1
-    lastTxCount = INCOMPLETE_TX_COUNT
-
     receipt_or_none: Optional[Receipt] = None
+
+    global LATEST_PENDING_NONCE
+    global LATEST_COMPLETE_NONCE
 
     for _ in range(20):
         await asyncio.sleep(30)
         receipt_or_none = await CONNECTION.get_tx_receipt(tx_id)
         if receipt_or_none is not None:
-            INCOMPLETE_TX_COUNT -= 1
+            if tx.nonce > LATEST_COMPLETE_NONCE:
+                LATEST_COMPLETE_NONCE = tx.nonce
             break
         else:
-            if INCOMPLETE_TX_COUNT > lastTxCount:
+            if LATEST_PENDING_NONCE > tx.nonce:
                 # If the pending tx count grew, resubmit this transaction with a
                 # boosted gas cost. Currently that's just a linear multiplier on
                 # the initial gas.
-                lastTxCount = INCOMPLETE_TX_COUNT
+                pendingTxCount = max(LATEST_PENDING_NONCE - tx.nonce, 1)
                 newTx = UnsignedEthTx(
                     nonce = tx.nonce,
-                    gasPrice = min(INCOMPLETE_TX_COUNT * tx.gasPrice, MAX_GAS_PRICE),
+                    gasPrice = min(pendingTxCount * DEFAULT_GAS_PRICE, MAX_GAS_PRICE),
                     gas = tx.gas,
                     to = tx.to,
                     value = tx.value,
