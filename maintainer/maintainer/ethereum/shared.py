@@ -19,7 +19,7 @@ MAX_GAS_PRICE = 80 * GWEI
 
 CONNECTION: ethrpc.BaseRPC
 NONCE: Iterator[int]  # yields ints, takes no sends
-
+INCOMPLETE_TX_COUNT = 0
 
 def _nonce(i: int) -> Iterator[int]:
     '''Infinite generator for nonces'''
@@ -60,6 +60,13 @@ async def init() -> None:
         NONCE = _nonce(n)
         logger.info(f'nonce is {n}')
 
+        # Start at the pending transaction count, which assumes the account used
+        # to operate the relay is doing nothing else.
+        global INCOMPLETE_TX_COUNT
+        mined_tx_count = int(await CONNECTION._RPC(
+            method='eth_getTransactionCount',
+            params=[address, 'latest']), 16)
+        INCOMPLETE_TX_COUNT = max(n - mined_tx_count, 0)
 
 async def close_connection() -> None:
     try:
@@ -166,8 +173,6 @@ def _adjust_gas_price(gas_price: int) -> int:
         raise ValueError(
             'very high gas price detected: {} gwei'.format(gas_price / GWEI))
     return gas_price
-
-INCOMPLETE_TX_COUNT = 0
 
 async def _track_tx_result(tx: UnsignedEthTx, tx_id: str) -> None:
     global INCOMPLETE_TX_COUNT
