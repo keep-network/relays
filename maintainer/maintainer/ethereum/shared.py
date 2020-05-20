@@ -14,7 +14,7 @@ logger = logging.getLogger('root.summa_relay.shared_eth')
 
 GWEI = 1000000000
 DEFAULT_GAS = 500_000
-DEFAULT_GAS_PRICE = 10 * GWEI
+DEFAULT_GAS_PRICE = 20 * GWEI
 MAX_GAS_PRICE = 80 * GWEI
 
 CONNECTION: ethrpc.BaseRPC
@@ -148,10 +148,7 @@ def make_call_tx(
 
     # Adjust gas price for current pending txes.
     if gas_price == -1:
-        gas_price = min(
-            # Let's make real sure there are no zero or negative gas prices, eh?
-            max(LATEST_PENDING_NONCE - nonce, 1) * DEFAULT_GAS_PRICE,
-            MAX_GAS_PRICE)
+        gas_price = _compute_tx_gas_price(nonce, 0)
 
     if nonce > LATEST_PENDING_NONCE:
         LATEST_PENDING_NONCE = nonce
@@ -193,12 +190,23 @@ def _adjust_gas_price(gas_price: int) -> int:
             'very high gas price detected: {} gwei'.format(gas_price / GWEI))
     return gas_price
 
+def _compute_tx_gas_price(tx_nonce, tx_ticks):
+    '''Compute the proper gas price, adjusting for other pending txes and how
+    long this tx has been pending, taking the max gas price into account.'''
+    gas_price_factor = max(LATEST_PENDING_NONCE - tx_nonce + tx_ticks, 0)
+    adjusted_gas_price = (1 + gas_price_factor * 0.2) * DEFAULT_GAS_PRICE
+
+    return max(min(adjusted_gas_price, MAX_GAS_PRICE), DEFAULT_GAS_PRICE)
+
 async def _track_tx_result(tx: UnsignedEthTx, tx_id: str) -> None:
     '''Keep track of the result of a transaction by polling every 25 seconds'''
     receipt_or_none: Optional[Receipt] = None
 
-    global LATEST_PENDING_NONCE
     global LATEST_COMPLETE_NONCE
+
+    # Number of ticks since submission occurred without a receipt.
+    ticks = 0
+    latest_gas_price = tx.gas_price
 
     for _ in range(20):
         await asyncio.sleep(30)
@@ -208,16 +216,16 @@ async def _track_tx_result(tx: UnsignedEthTx, tx_id: str) -> None:
                 LATEST_COMPLETE_NONCE = tx.nonce
             break
         else:
-            if LATEST_PENDING_NONCE > tx.nonce:
-                # If the pending tx count grew, resubmit this transaction with a
-                # boosted gas cost. Currently that's just a linear multiplier on
-                # the initial gas.
-                pendingTxCount = max(LATEST_PENDING_NONCE - tx.nonce, 1)
-                newGasPrice = min(pendingTxCount * DEFAULT_GAS_PRICE, MAX_GAS_PRICE)
-                logger.info(f'resubmitting {tx_id} with gas price {newGasPrice}')
+            ticks += 1
+            new_gas_price = _compute_tx_gas_price(tx.nonce, ticks)
+
+            # If the new gas price is higher, resubmit this transaction with a
+            # boosted gas price to improve chances of confirmation.
+            if new_gas_price > latest_gas_price:
+                logger.info(f'resubmitting {tx_id} with gas price {new_gas_price}')
                 newTx = UnsignedEthTx(
                     nonce = tx.nonce,
-                    gasPrice = newGasPrice,
+                    gasPrice = new_gas_price,
                     gas = tx.gas,
                     to = tx.to,
                     value = tx.value,
