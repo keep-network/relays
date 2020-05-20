@@ -73,7 +73,13 @@ async def init() -> None:
         # unconfirmed nonce having already been mined---this is fine, the
         # process can be restarted and will read the latest pending and mined
         # state at that time.
-        NONCE = _nonce(LATEST_COMPLETE_NONCE)
+        #
+        # If all pending nonces are already complete, make sure to start 1
+        # ahead.
+        next_nonce = LATEST_COMPLETE_NONCE
+        if LATEST_COMPLETE_NONCE == LATEST_PENDING_NONCE:
+            next_nonce += 1
+        NONCE = _nonce(next_nonce)
         logger.info(f'next nonce is {LATEST_COMPLETE_NONCE}')
 
 async def close_connection() -> None:
