@@ -144,7 +144,7 @@ def make_call_tx(
     if gas_price == -1:
         gas_price = min(
             # Let's make real sure there are no zero or negative gas prices, eh?
-            max(LATEST_PENDING_NONCE - n, 1) * DEFAULT_GAS_PRICE,
+            max(LATEST_PENDING_NONCE - nonce, 1) * DEFAULT_GAS_PRICE,
             MAX_GAS_PRICE)
 
     if nonce > LATEST_PENDING_NONCE:
