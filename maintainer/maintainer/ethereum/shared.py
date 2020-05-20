@@ -66,6 +66,7 @@ async def init() -> None:
 
         LATEST_PENDING_NONCE = await CONNECTION.get_nonce(address) - 1
         LATEST_COMPLETE_NONCE = mined_tx_count
+        logger.info(f'latest pending nonce is {LATEST_PENDING_NONCE}')
 
         # Replace all pending txes by starting the nonce at the mined count.
         # Note that we could crash if the next tx we send finds the first
@@ -73,7 +74,7 @@ async def init() -> None:
         # process can be restarted and will read the latest pending and mined
         # state at that time.
         NONCE = _nonce(LATEST_COMPLETE_NONCE + 1)
-        logger.info(f'nonce is {LATEST_COMPLETE_NONCE + 1}')
+        logger.info(f'next nonce is {LATEST_COMPLETE_NONCE + 1}')
 
 async def close_connection() -> None:
     try:
@@ -206,9 +207,11 @@ async def _track_tx_result(tx: UnsignedEthTx, tx_id: str) -> None:
                 # boosted gas cost. Currently that's just a linear multiplier on
                 # the initial gas.
                 pendingTxCount = max(LATEST_PENDING_NONCE - tx.nonce, 1)
+                newGasPrice = min(pendingTxCount * DEFAULT_GAS_PRICE, MAX_GAS_PRICE)
+                logger.info(f'resubmitting {tx_id} with gas price {newGasPrice}')
                 newTx = UnsignedEthTx(
                     nonce = tx.nonce,
-                    gasPrice = min(pendingTxCount * DEFAULT_GAS_PRICE, MAX_GAS_PRICE),
+                    gasPrice = newGasPrice,
                     gas = tx.gas,
                     to = tx.to,
                     value = tx.value,
