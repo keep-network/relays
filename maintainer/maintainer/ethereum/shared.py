@@ -201,7 +201,7 @@ async def _track_tx_result(tx: UnsignedEthTx, tx_id: str) -> None:
 
     # Number of ticks since submission occurred without a receipt.
     ticks = 0
-    latest_gas_price = tx.gas_price
+    latest_gas_price = tx.gasPrice
 
     for _ in range(20):
         await asyncio.sleep(30)
