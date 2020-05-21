@@ -191,7 +191,7 @@ def _compute_tx_gas_price(tx_nonce, tx_ticks):
     '''Compute the proper gas price, adjusting for other pending txes and how
     long this tx has been pending, taking the max gas price into account.'''
     gas_price_factor = max(LATEST_PENDING_NONCE - tx_nonce + tx_ticks, 0)
-    adjusted_gas_price = (1 + gas_price_factor * 0.2) * DEFAULT_GAS_PRICE
+    adjusted_gas_price = round((1 + gas_price_factor * 0.2) * DEFAULT_GAS_PRICE)
 
     return max(min(adjusted_gas_price, MAX_GAS_PRICE), DEFAULT_GAS_PRICE)
 
