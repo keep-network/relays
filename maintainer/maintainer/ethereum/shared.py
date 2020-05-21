@@ -89,7 +89,8 @@ async def close_connection() -> None:
 
 async def sign_and_broadcast(
         tx: UnsignedEthTx,
-        ignore_result: bool = False) -> None:
+        ignore_result: bool = False,
+        ticks: int = 0) -> None:
     '''Sign an ethereum transaction and broadcast it to the network'''
     c = config.get()
     privkey = c['PRIVKEY']
@@ -99,21 +100,28 @@ async def sign_and_broadcast(
     if privkey is None and unlock_code is None:
         raise RuntimeError('Attempted to sign tx without access to key')
 
-    if privkey is None:
-        logger.debug('signing with ether node')
-        await CONNECTION._RPC(
-            'personal_unlockAccount',
-            [address, unlock_code])
-        tx_id = await CONNECTION.send_transaction(cast(str, address), tx)
-    else:
-        logger.debug('signing with local key')
-        signed = tx.sign(cast(bytes, privkey))
-        serialized = signed.serialize_hex()
-        tx_id = await CONNECTION.broadcast(serialized)
+    try:
+        if privkey is None:
+            logger.debug('signing with ether node')
+            await CONNECTION._RPC(
+                'personal_unlockAccount',
+                [address, unlock_code])
+            tx_id = await CONNECTION.send_transaction(cast(str, address), tx)
+        else:
+            logger.debug('signing with local key')
+            signed = tx.sign(cast(bytes, privkey))
+            serialized = signed.serialize_hex()
+            tx_id = await CONNECTION.broadcast(serialized)
+    except RuntimeError as err:
+        if type(err.args[0]) is dict and 'known transaction: ' in dict(err.args[0])['message']:
+            tx_id = dict(err.args[0])[19:]
+        else:
+            raise err # re-raise
+
 
     logger.info(f'dispatched transaction {tx_id}')
     if not ignore_result:
-        asyncio.ensure_future(_track_tx_result(tx, tx_id))
+        asyncio.ensure_future(_track_tx_result(tx, tx_id, ticks))
 
 
 def make_call_tx(
@@ -195,12 +203,10 @@ def _compute_tx_gas_price(tx_nonce, tx_ticks):
 
     return max(min(adjusted_gas_price, MAX_GAS_PRICE), DEFAULT_GAS_PRICE)
 
-async def _track_tx_result(tx: UnsignedEthTx, tx_id: str) -> None:
+async def _track_tx_result(tx: UnsignedEthTx, tx_id: str, ticks: int = 0) -> None:
     '''Keep track of the result of a transaction by polling every 25 seconds'''
     receipt_or_none: Optional[Receipt] = None
 
-    # Number of ticks since submission occurred without a receipt.
-    ticks = 0
     latest_gas_price = tx.gasPrice
 
     for _ in range(20):
@@ -227,7 +233,7 @@ async def _track_tx_result(tx: UnsignedEthTx, tx_id: str) -> None:
 
                 # Broadcast and set up tracking for the new tx, and stop
                 # watching this one.
-                await sign_and_broadcast(newTx, False)
+                await sign_and_broadcast(newTx, True, ticks)
                 return
 
     if receipt_or_none is None:
