@@ -20,7 +20,6 @@ MAX_GAS_PRICE = 80 * GWEI
 CONNECTION: ethrpc.BaseRPC
 NONCE: Iterator[int]  # yields ints, takes no sends
 LATEST_PENDING_NONCE = 0
-LATEST_COMPLETE_NONCE = 0
 
 def _nonce(i: int) -> Iterator[int]:
     '''Infinite generator for nonces'''
@@ -57,7 +56,6 @@ async def init() -> None:
     else:
         global NONCE
         global LATEST_PENDING_NONCE
-        global LATEST_COMPLETE_NONCE
         address = cast(str, c['ETH_ADDRESS'])
         # Get the already-mined count.
         mined_tx_count = int(await CONNECTION._RPC(
@@ -65,7 +63,6 @@ async def init() -> None:
             params=[address, 'latest']), 16)
 
         LATEST_PENDING_NONCE = await CONNECTION.get_nonce(address) - 1
-        LATEST_COMPLETE_NONCE = mined_tx_count
         logger.info(f'latest pending nonce is {LATEST_PENDING_NONCE}')
 
         # Replace all pending txes by starting the nonce at the mined count.
@@ -76,11 +73,11 @@ async def init() -> None:
         #
         # If all pending nonces are already complete, make sure to start 1
         # ahead.
-        next_nonce = LATEST_COMPLETE_NONCE
-        if LATEST_COMPLETE_NONCE == LATEST_PENDING_NONCE:
+        next_nonce = mined_tx_count
+        if mined_tx_count == LATEST_PENDING_NONCE:
             next_nonce += 1
         NONCE = _nonce(next_nonce)
-        logger.info(f'next nonce is {LATEST_COMPLETE_NONCE}')
+        logger.info(f'next nonce is {next_nonce}')
 
 async def close_connection() -> None:
     try:
@@ -202,8 +199,6 @@ async def _track_tx_result(tx: UnsignedEthTx, tx_id: str) -> None:
     '''Keep track of the result of a transaction by polling every 25 seconds'''
     receipt_or_none: Optional[Receipt] = None
 
-    global LATEST_COMPLETE_NONCE
-
     # Number of ticks since submission occurred without a receipt.
     ticks = 0
     latest_gas_price = tx.gas_price
@@ -212,8 +207,6 @@ async def _track_tx_result(tx: UnsignedEthTx, tx_id: str) -> None:
         await asyncio.sleep(30)
         receipt_or_none = await CONNECTION.get_tx_receipt(tx_id)
         if receipt_or_none is not None:
-            if tx.nonce > LATEST_COMPLETE_NONCE:
-                LATEST_COMPLETE_NONCE = tx.nonce
             break
         else:
             ticks += 1
