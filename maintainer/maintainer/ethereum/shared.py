@@ -240,7 +240,7 @@ async def _track_tx_result(tx: UnsignedEthTx, tx_id: str, ticks: int = 0) -> Non
 
                 # Broadcast and set up tracking for the new tx, and stop
                 # watching this one.
-                await sign_and_broadcast(newTx, True, ticks)
+                await sign_and_broadcast(newTx, False, ticks)
                 return
 
     if receipt_or_none is None:
