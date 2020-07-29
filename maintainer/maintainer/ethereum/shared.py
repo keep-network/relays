@@ -100,6 +100,7 @@ async def sign_and_broadcast(
     if privkey is None and unlock_code is None:
         raise RuntimeError('Attempted to sign tx without access to key')
 
+    logger.info(f'dispatching transaction at nonce {tx.nonce} with gas price {tx.gasPrice}')
     try:
         if privkey is None:
             logger.debug('signing with ether node')
@@ -118,8 +119,7 @@ async def sign_and_broadcast(
         else:
             raise err # re-raise
 
-
-    logger.info(f'dispatched transaction {tx_id}')
+    logger.info(f'dispatched transaction {tx_id} with gas price {tx.gasPrice}')
     if not ignore_result:
         asyncio.ensure_future(_track_tx_result(tx, tx_id, ticks))
 
