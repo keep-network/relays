@@ -116,6 +116,10 @@ async def sign_and_broadcast(
     except RuntimeError as err:
         if type(err.args[0]) is dict and 'known transaction: ' in dict(err.args[0])['message']:
             tx_id = dict(err.args[0])[19:]
+        elif 'transaction underpriced' in err.args[0]:
+            # Move on to a retry
+            asyncio.ensure_future(_track_tx_result(tx, ""))
+            return
         else:
             raise err # re-raise
 
@@ -211,7 +215,10 @@ async def _track_tx_result(tx: UnsignedEthTx, tx_id: str, ticks: int = 0) -> Non
 
     for _ in range(20):
         await asyncio.sleep(30)
-        receipt_or_none = await CONNECTION.get_tx_receipt(tx_id)
+        receipt_or_none = None
+        if tx_id != "":
+            receipt_or_none = await CONNECTION.get_tx_receipt(tx_id)
+
         if receipt_or_none is not None:
             break
         else:
