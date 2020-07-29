@@ -144,6 +144,7 @@ async def find_lca(
                 RelayHeader,
                 await bcoin_rpc.get_header_by_hash_le(ancestor['prevhash']))
         await asyncio.sleep(15)
+
     raise RuntimeError('Unable to find LCA after 5 attempts')
 
 
@@ -161,7 +162,17 @@ async def _update_best_digest(
             RelayHeader,
             await bcoin_rpc.get_header_by_hash_le(current_best_digest))
 
-        ancestor = await find_lca(new_best, current_best)
+        try:
+            ancestor = await find_lca(new_best, current_best)
+        except RuntimeError as err:
+            if err.args[0] == 'Unable to find LCA after 5 attempts':
+                logger.warn(err)
+                # Retry after a while, we're probably behind.
+                await asyncio.sleep(60)
+                continue
+            else:
+                raise err # re-raise
+
         delta = new_best['height'] - ancestor['height'] + 1
 
         tx = shared.make_call_tx(
