@@ -61,6 +61,7 @@ async def init() -> None:
         mined_tx_count = int(await CONNECTION._RPC(
             method='eth_getTransactionCount',
             params=[address, 'latest']), 16)
+        logger.info(f'mined tx count is {mined_tx_count}')
 
         LATEST_PENDING_NONCE = await CONNECTION.get_nonce(address) - 1
         logger.info(f'latest pending nonce is {LATEST_PENDING_NONCE}')
