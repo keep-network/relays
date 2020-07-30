@@ -203,7 +203,7 @@ def _adjust_gas_price(gas_price: int) -> int:
 def _compute_tx_gas_price(tx_nonce, tx_ticks):
     '''Compute the proper gas price, adjusting for other pending txes and how
     long this tx has been pending, taking the max gas price into account.'''
-    gas_price_factor = max(LATEST_PENDING_NONCE - tx_nonce + tx_ticks, 0)
+    gas_price_factor = max(2**(LATEST_PENDING_NONCE - tx_nonce) + tx_ticks, 0)
     adjusted_gas_price = round((1 + gas_price_factor * 0.2) * DEFAULT_GAS_PRICE)
 
     return max(min(adjusted_gas_price, MAX_GAS_PRICE), DEFAULT_GAS_PRICE)
@@ -244,6 +244,7 @@ async def _track_tx_result(tx: UnsignedEthTx, tx_id: str, ticks: int = 0) -> Non
                 await sign_and_broadcast(newTx, False, ticks)
                 return
 
+    # This is reachable only when we've hit max gas.
     if receipt_or_none is None:
         raise RuntimeError(f'No receipt after 10 minutes: {tx_id}')
 
