@@ -60,7 +60,7 @@ async def init() -> None:
         # Get the already-mined count.
         mined_tx_count = int(await CONNECTION._RPC(
             method='eth_getTransactionCount',
-            params=[address, 'latest']), 16)
+            params=[address, 'latest']), 16) - 1
         logger.info(f'mined tx count is {mined_tx_count}')
 
         LATEST_PENDING_NONCE = await CONNECTION.get_nonce(address) - 1
@@ -74,9 +74,7 @@ async def init() -> None:
         #
         # If all pending nonces are already complete, make sure to start 1
         # ahead.
-        next_nonce = mined_tx_count
-        if mined_tx_count == LATEST_PENDING_NONCE:
-            next_nonce += 1
+        next_nonce = mined_tx_count + 1
         NONCE = _nonce(next_nonce)
         logger.info(f'next nonce is {next_nonce}')
 
