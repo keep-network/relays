@@ -256,6 +256,14 @@ async def _track_tx_result(tx: UnsignedEthTx, tx_id: str, ticks: int = 0) -> Non
                 # Broadcast and set up tracking for the new tx, and stop
                 asyncio.ensure_future(sign_and_broadcast(newTx, False, ticks))
                 return
+            # If gas is still below the max gas price, try again with the next
+            # tick.
+            elif new_gas_price < MAX_GAS_PRICE:
+                logger.info(f'attempting to boost gas for {tx_id} at gas price {latest_gas_price} past gas price {new_gas_price}, tick {ticks}')
+                asyncio.ensure_future(_track_tx_result(tx, tx_id, ticks))
+                return
+            else:
+                logger.info(f'no gas price bump possible, continuing to wait for receipt: {tx_id}, nonce: {tx.nonce}, gas price: {tx.gasPrice}, bumped price: {new_gas_price}')
 
     # This is reachable only when we've hit max gas.
     if receipt_or_none is None:
