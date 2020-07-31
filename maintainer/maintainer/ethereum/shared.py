@@ -225,9 +225,13 @@ async def _track_tx_result(tx: UnsignedEthTx, tx_id: str, ticks: int = 0) -> Non
     latest_gas_price = tx.gasPrice
 
     for _ in range(20):
-        await asyncio.sleep(30)
         receipt_or_none = None
+
+        # For a blank tx_id, skip the sleep and go straight to cranking gas.
+        # Blank tx_ids are really just us trying to catch up to the latest used
+        # gas price.
         if tx_id != "":
+            await asyncio.sleep(30)
             receipt_or_none = await CONNECTION.get_tx_receipt(tx_id)
 
         if receipt_or_none is not None:
