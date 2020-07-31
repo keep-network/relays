@@ -125,6 +125,12 @@ async def sign_and_broadcast(
             # gas level if needed.
             asyncio.ensure_future(_track_tx_result(tx, ""))
             return
+        elif 'nonce too low' in err.args[0] and ticks > 0:
+            logger.warn(
+                f'Got an error {err} submitting nonce {tx.nonce} at gas price ' +
+                f'{tx.gasPrice}; assuming a lower-priced version cleared and ' +
+                f'continuing normally.'
+            )
         else:
             raise err # re-raise
 
