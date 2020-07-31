@@ -115,8 +115,14 @@ async def sign_and_broadcast(
     except RuntimeError as err:
         if type(err.args[0]) is dict and 'known transaction: ' in dict(err.args[0])['message']:
             tx_id = dict(err.args[0])[19:]
-        elif 'transaction underpriced' in err.args[0]:
-            # Move on to a retry
+        elif 'transaction underpriced' in err.args[0] or 'already known' in err.args[0]:
+            logger.warn(
+                f'Got an error {err} submitting nonce {tx.nonce} at gas price ' +
+                f'{tx.gasPrice}; boosting gas.'
+            )
+            # We're trying to submit a transaction that's already been
+            # submitted; start a retry loop so we can climb to a higher
+            # gas level if needed.
             asyncio.ensure_future(_track_tx_result(tx, ""))
             return
         else:
