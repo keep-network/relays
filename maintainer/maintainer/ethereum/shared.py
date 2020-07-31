@@ -134,7 +134,7 @@ async def sign_and_broadcast(
         else:
             raise err # re-raise
 
-    logger.info(f'dispatched transaction {tx_id} with gas price {tx.gasPrice}')
+    logger.info(f'dispatched transaction {tx_id} at nonce {tx.nonce} with gas price {tx.gasPrice}')
     if not ignore_result:
         asyncio.ensure_future(_track_tx_result(tx, tx_id, ticks))
 
@@ -256,7 +256,7 @@ async def _track_tx_result(tx: UnsignedEthTx, tx_id: str, ticks: int = 0) -> Non
 
     # This is reachable only when we've hit max gas.
     if receipt_or_none is None:
-        raise RuntimeError(f'No receipt after 10 minutes: {tx_id}')
+        raise RuntimeError(f'No receipt after 10 minutes: {tx_id}, nonce: {tx.nonce}, gas price: {tx.gasPrice}')
 
     receipt = cast(Receipt, receipt_or_none)
     logger.info(f'Receipt for {tx_id} status is {receipt["status"]}')
