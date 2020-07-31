@@ -254,8 +254,7 @@ async def _track_tx_result(tx: UnsignedEthTx, tx_id: str, ticks: int = 0) -> Non
                     chainId = tx.chainId)
 
                 # Broadcast and set up tracking for the new tx, and stop
-                # watching this one.
-                await sign_and_broadcast(newTx, False, ticks)
+                asyncio.ensure_future(sign_and_broadcast(newTx, False, ticks))
                 return
 
     # This is reachable only when we've hit max gas.
