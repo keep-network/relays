@@ -14,8 +14,8 @@ logger = logging.getLogger('root.summa_relay.shared_eth')
 
 GWEI = 1000000000
 DEFAULT_GAS = 500_000
-DEFAULT_GAS_PRICE = 20 * GWEI
-MAX_GAS_PRICE = 120 * GWEI
+DEFAULT_GAS_PRICE = 100 * GWEI
+MAX_GAS_PRICE = 600 * GWEI
 
 CONNECTION: ethrpc.BaseRPC
 NONCE: Iterator[int]  # yields ints, takes no sends
@@ -214,7 +214,7 @@ def _compute_tx_gas_price(tx_nonce, tx_ticks):
     '''Compute the proper gas price, adjusting for other pending txes and how
     long this tx has been pending, taking the max gas price into account.'''
     gas_price_factor = max((LATEST_PENDING_NONCE - tx_nonce + 1) * tx_ticks, 0)
-    adjusted_gas_price = round((1 + gas_price_factor * 0.2) * DEFAULT_GAS_PRICE)
+    adjusted_gas_price = round((1 + gas_price_factor * 0.5) * DEFAULT_GAS_PRICE)
 
     return max(min(adjusted_gas_price, MAX_GAS_PRICE), DEFAULT_GAS_PRICE)
 
