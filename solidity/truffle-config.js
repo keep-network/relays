@@ -42,6 +42,12 @@ const alfajores = {
   timeoutBlocks: 200
 }
 
+const local = {
+  host: "127.0.0.1",
+  port: 8545,
+  network_id: "*" // Match any network id
+}
+
 module.exports = {
   api_keys: {
     etherscan: process.env.ETHERSCAN_KEY
@@ -67,6 +73,8 @@ module.exports = {
 
     alfajores: alfajores,
     alfajores_test: alfajores,
+
+    local_test: local,
   },
 
   // mocha: {
@@ -84,3 +92,4 @@ module.exports = {
     }
   }
 };
+
