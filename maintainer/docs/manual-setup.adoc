@@ -117,6 +117,7 @@ If your system’s python version is different, you can install python 3.7 via p
 some libraries like zlib)
 Select 3.7.10 as your global version. You can verify this step by checking python
 version. Install pipenv.
+Note: You can later return to your default python version with ```pyenv global system```
 
 ```
 $ pyenv install 3.7.10
