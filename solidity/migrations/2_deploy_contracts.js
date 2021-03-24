@@ -35,5 +35,5 @@ module.exports = async (deployer, network) => {
   await sleep(7500);
   /* eslint-enable */
 
-  deployer.deploy(contract, genesis, height, epochStart, firstID);
+  await deployer.deploy(contract, genesis, height, epochStart, firstID);
 };

@@ -48,4 +48,9 @@ module.exports = {
     bitcoin: bitcoinTest,
     firstID: ID_SPACE_SIZE.muln(truffleConf.networks.alfajores_test.network_id + 0x800000)
   },
+  local_test: {
+    network_id: truffleConf.networks.local_test.network_id,
+    bitcoin: bitcoinTest,
+    firstID: ID_SPACE_SIZE.muln(truffleConf.networks.local_test.network_id + 0x800000)
+  },
 };
