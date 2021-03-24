@@ -1,0 +1,186 @@
+= Running Relay Maintainer locally
+
+This instruction describes how to set up Relay Maintainer using local Ethereum
+node and Bitcoin Testnet node.
+
+== Prepare local Ethereum and Bitcoin testnet nodes
+
+The easiest way to set up a local Ethereum node is running scripts located in
+the ```keep-network/local-setup``` repo:
+
+```
+$ cd local-setup
+$ ./initialize-geth.sh
+$ ./run-geth.sh
+```
+
+The Ethereum node will run on ```127.0.0.1:8545``` and have ```1101``` as chain id.
+You should also have a Bitcoin Testnet node running (locally or remotely).
+
+== Deploy smart contracts to the Ethereum node
+
+```
+$ cd relays/solidity
+$ npm install -g truffle
+$ truffle migrate --reset --network local_test
+```
+
+Part of the output is shown below, the contract address field value will be
+needed later.
+
+```
+2_deploy_contracts.js
+=====================
+
+network is local_test
+First request ID is 36033525777956864
+Press Ctrl+C to cancel
+
+
+   Replacing 'TestnetRelay'
+   ------------------------
+   > transaction hash:    0x5aa4bd13d874bcb282fbef0f2166aeb687d065f7706879d8d4de14750017a9c5
+   > Blocks: 2            Seconds: 4
+   > contract address:    0xD5d52E85621994Ed5f4edf454ba283b6D99780a9
+   > block number:        11
+   > block timestamp:     1615295593
+   > account:             0x3d373D872B7BA29d92Ed47CAA8605b4DD6Ec84eF
+   > balance:             1000000000000000000000000000000000000
+   > gas used:            3099547 (0x2f4b9b)
+   > gas price:           20 gwei
+   > value sent:          0 ETH
+   > total cost:          0.06199094 ETH
+
+
+   > Saving migration to chain.
+   > Saving artifacts
+   -------------------------------------
+   > Total cost:          0.06199094 ETH
+
+```
+
+== Prepare config file
+
+You can name the file ```.my_env_file.env``` and put it in ```relay/maintainer/maintainer/config directory```.
+
+The value ```d6ce6a6ca295bbef9ddee79e583fabdcdd98290bbea2dc03ff8317ccf70d3f87```
+is a private key extracted from UTC keystore file.
+
+You need to fill details of the Bitcoin Testnet node (password, port, ip) - marked
+with ... below and copy contract address from previous step to ```SUMMA_RELAY_CONTRACT```:
+
+```
+# default: 127.0.0.1
+SUMMA_RELAY_ETHER_HOST=127.0.0.1
+
+# default: 8545
+SUMMA_RELAY_ETHER_PORT=8545
+
+# no default
+# 32-byte hex-encoded privkey
+SUMMA_RELAY_OPERATOR_KEY="d6ce6a6ca295bbef9ddee79e583fabdcdd98290bbea2dc03ff8317ccf70d3f87"
+
+# default: ropsten
+SUMMA_RELAY_ETH_NETWORK=local_test
+
+# default: inherited from ETH_NETWORK.
+# to override, leave network blank
+SUMMA_RELAY_ETH_CHAIN_ID=1101
+
+# default: 127.0.0.1
+SUMMA_RELAY_BCOIN_HOST=...
+
+# default: "" (empty string)
+SUMMA_RELAY_BCOIN_API_KEY=...
+
+# default: 8332
+SUMMA_RELAY_BCOIN_PORT=...
+
+# no default
+# target relay smart contract address
+SUMMA_RELAY_CONTRACT=0xD5d52E85621994Ed5f4edf454ba283b6D99780a9
+
+# default: 100
+DEFAULT_GAS_PRICE_GWEI="7"
+
+# default: 600
+MAX_GAS_PRICE_GWEI="90"
+```
+
+== Install python 3.7 and run Relay Maintainer
+
+Relay Maintainer requiers python 3.7 to run.
+If your system’s python version is different, you can install python 3.7 via pyenv:
+
+* Install pyenv (link:https://realpython.com/intro-to-pyenv/#installing-pyenv[useful info])
+* Install python 3.7.10 using pyenv (if you get an error, you may need to install
+some libraries like zlib)
+Select 3.7.10 as your global version. You can verify this step by checking python
+version. Install pipenv.
+Note: You can later return to your default python version with ```pyenv global system```
+
+```
+$ pyenv install 3.7.10
+$ pyenv versions
+$ pyenv global 3.7.10
+$ python --version
+$ pip install pipenv
+```
+
+* Navigate to directory ```relays/maintainer``` (where Pipfile is located) and
+install dependencies, install ```setup.py```.
+(Note: if you modify Relay Maintainer’s code, you need to repeat the last step).
+Run Relay Maintainer and pass full path to the directory where your .env file is
+located.
+
+```
+$ pipenv install --system
+$ python setup.py install
+$ python maintainer/header_forwarder/h.py /full/path/to/maintainer/config/.my_env_file.env
+```
+
+Relay Maintainer should be running now.
+
+== Running with Ropsten Ethereum testnet
+
+You can set up Relay Maintainer to use Ropsten instead of a local node.
+The smart contracts should already be deployed, just provide details needed to
+connect to the bitcoin node - marked with ... below:
+
+```
+# default: 127.0.0.1
+SUMMA_RELAY_ETHER_HOST=https://ropsten.infura.io/v3/414a548bc7434bbfb7a135b694b15aa4
+
+# default: 8545
+SUMMA_RELAY_ETHER_PORT=80
+
+# no default
+# 32-byte hex-encoded privkey
+SUMMA_RELAY_OPERATOR_KEY="3158378be31bd3dd9ffec1be06b35c49a8de2d9b4dbc0c82f888e63b37f91533"
+
+# default: ropsten
+SUMMA_RELAY_ETH_NETWORK=ropsten
+
+# default: 127.0.0.1
+SUMMA_RELAY_BCOIN_HOST=...
+
+# default: "" (empty string)
+SUMMA_RELAY_BCOIN_API_KEY=...
+
+# default: 8332
+SUMMA_RELAY_BCOIN_PORT=...
+
+# no default
+# infura project ID
+SUMMA_RELAY_INFURA_KEY="414a548bc7434bbfb7a135b694b15aa4"
+
+# no default
+# target relay smart contract address
+SUMMA_RELAY_CONTRACT=0xcF3a6246879aab9eb7beC0d936743208EA51d0Ed
+
+# default: 100
+DEFAULT_GAS_PRICE_GWEI="7"
+
+# default: 600
+MAX_GAS_PRICE_GWEI="90"
+```
