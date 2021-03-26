@@ -11,11 +11,8 @@ from typing import Any, cast, Dict, Iterator, List, Optional
 
 logger = logging.getLogger('root.summa_relay.shared_eth')
 
-
 GWEI = 1000000000
 DEFAULT_GAS = 500_000
-DEFAULT_GAS_PRICE = 100 * GWEI
-MAX_GAS_PRICE = 600 * GWEI
 
 CONNECTION: ethrpc.BaseRPC
 NONCE: Iterator[int]  # yields ints, takes no sends
@@ -32,12 +29,15 @@ def _nonce(i: int) -> Iterator[int]:
 async def init() -> None:
     '''Set up a connection to the interwebs'''
     global CONNECTION
+    global MAX_GAS_PRICE
 
     c = config.get()
     network = c['NETWORK']
     project_id = c['PROJECT_ID']
     uri = c['ETHER_URL']
     force_https = project_id != ''
+
+    MAX_GAS_PRICE = int(c['MAX_GAS_PRICE_GWEI']) * GWEI
 
     logger.info(f'contract is {c["CONTRACT"]}')
 
@@ -213,10 +213,12 @@ def _adjust_gas_price(gas_price: int) -> int:
 def _compute_tx_gas_price(tx_nonce, tx_ticks):
     '''Compute the proper gas price, adjusting for other pending txes and how
     long this tx has been pending, taking the max gas price into account.'''
-    gas_price_factor = max((LATEST_PENDING_NONCE - tx_nonce + 1) * tx_ticks, 0)
-    adjusted_gas_price = round((1 + gas_price_factor * 0.5) * DEFAULT_GAS_PRICE)
+    defaultGasPrice = int(config.get()['DEFAULT_GAS_PRICE_GWEI']) * GWEI
 
-    return max(min(adjusted_gas_price, MAX_GAS_PRICE), DEFAULT_GAS_PRICE)
+    gas_price_factor = max((LATEST_PENDING_NONCE - tx_nonce + 1) * tx_ticks, 0)
+    adjusted_gas_price = round((1 + gas_price_factor * 0.5) * defaultGasPrice)
+
+    return max(min(adjusted_gas_price, MAX_GAS_PRICE), defaultGasPrice)
 
 async def _track_tx_result(tx: UnsignedEthTx, tx_id: str, ticks: int = 0) -> None:
     '''Keep track of the result of a transaction by polling every 25 seconds'''

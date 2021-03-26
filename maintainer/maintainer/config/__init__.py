@@ -86,6 +86,8 @@ def set() -> RelayConfig:
         BCOIN_WS_URL=f'ws://{BCOIN_HOST}:{BCOIN_PORT}',
         PROJECT_ID=os.environ.get('SUMMA_RELAY_INFURA_KEY', ''),
         CONTRACT=os.environ.get('SUMMA_RELAY_CONTRACT', ''),
+        DEFAULT_GAS_PRICE_GWEI=os.environ.get('DEFAULT_GAS_PRICE_GWEI', 100),
+        MAX_GAS_PRICE_GWEI=os.environ.get('MAX_GAS_PRICE_GWEI', 600),
     )
 
     return CONFIG
